@@ -1,0 +1,130 @@
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Lexend:wght@300;400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300;1,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --accessai-burgundy-deep: #421426;
+    --accessai-burgundy-dark: #70243E;
+    --accessai-burgundy-accent: #8E294B;
+    --accessai-pink-light: #F4C7D5;
+    --accessai-pink-pale: #F9E8EE;
+    --accessai-bg: #FFF8FA;
+    --accessai-white: #FFFFFF;
+    --accessai-lime: #D8FF56;
+    --accessai-lilac: #D5A5FF;
+    --accessai-text-primary: #291923;
+    --accessai-text-secondary: #806C77;
+  }
+
+  body {
+    background-color: #FFF8FA;
+    color: #291923;
+    font-family: 'Inter', 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Accessible focus indicators */
+  :focus-visible {
+    outline: 2px solid #8E294B;
+    outline-offset: 2px;
+  }
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F9E8EE;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #F4C7D5;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #8E294B;
+}
+
+/* Soft card and surface styles */
+.accessai-card {
+  background-color: #FFFFFF;
+  border: 1px solid #F9E8EE;
+  border-radius: 1rem;
+  box-shadow: 0 2px 8px rgba(41, 25, 35, 0.03);
+}
+
+.accessai-card-hover {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.accessai-card-hover:hover {
+  transform: translateY(-2px);
+  border-color: #F4C7D5;
+  box-shadow: 0 8px 24px rgba(66, 20, 38, 0.08);
+}
+
+/* Reading Theme Preview Classes */
+.theme-default {
+  background-color: #FFFFFF;
+  color: #291923;
+}
+
+.theme-warm {
+  background-color: #FAF4E6;
+  color: #2E241E;
+}
+
+.theme-dark {
+  background-color: #291923;
+  color: #F9E8EE;
+}
+
+.theme-high-contrast {
+  background-color: #000000;
+  color: #D8FF56;
+}
+
+.theme-dyslexia {
+  background-color: #F4EDD8;
+  color: #1A1E24;
+}
+
+/* Reading Ruler Overlay */
+.accessai-reading-ruler {
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: 52px;
+  background: rgba(216, 255, 86, 0.15);
+  border-top: 2px solid #8E294B;
+  border-bottom: 2px solid #8E294B;
+  pointer-events: none;
+  z-index: 2147483640;
+  box-shadow: 0 0 0 9999px rgba(41, 25, 35, 0.38);
+  transition: top 0.05s ease-out;
+}
+
+/* Sentence/Word reading highlight for TTS */
+.accessai-word-highlight {
+  background-color: #D8FF56 !important;
+  color: #291923 !important;
+  border-radius: 3px;
+  padding: 0 2px;
+  box-shadow: 0 0 8px rgba(216, 255, 86, 0.6);
+  transition: background-color 0.1s ease;
+}
+
+.accessai-sentence-highlight {
+  background-color: rgba(213, 165, 255, 0.28) !important;
+  border-radius: 4px;
+  padding: 2px 4px;
+}

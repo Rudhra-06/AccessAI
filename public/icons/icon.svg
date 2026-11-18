@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="accessGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#421426" />
+      <stop offset="60%" stop-color="#70243E" />
+      <stop offset="100%" stop-color="#8E294B" />
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#accessGrad)" />
+  <circle cx="64" cy="64" r="46" fill="#F9E8EE" opacity="0.12" />
+  
+  <!-- Stylized Letter A in Crisp White -->
+  <path d="M64 28 L40 92 L52 92 L58 74 L70 74 L76 92 L88 92 Z M64 46 L68 64 L60 64 Z" fill="#ffffff" />
+  <circle cx="64" cy="56" r="3" fill="#F4C7D5" />
+  
+  <!-- Adaptive Radiance Nodes in Neon Lime -->
+  <circle cx="94" cy="34" r="5" fill="#D8FF56" />
+  <path d="M94 22 L94 46 M82 34 L106 34" stroke="#D8FF56" stroke-width="2.5" stroke-linecap="round" />
+</svg>
