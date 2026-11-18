@@ -77,6 +77,22 @@ export class ExtensionBridge {
     }
   }
 
+  saveSiteOverride(domain, profile) {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('accessai:save_site_override', {
+        detail: { domain, profile },
+      }));
+    }
+  }
+
+  deleteSiteOverride(domain) {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('accessai:delete_site_override', {
+        detail: { domain },
+      }));
+    }
+  }
+
   /**
    * Reset site overrides or active extension settings
    */
@@ -84,6 +100,9 @@ export class ExtensionBridge {
     const overrides = await learningStorage.getAllSiteOverrides();
     for (const ov of overrides) {
       await learningStorage.deleteSiteOverride(ov.domain);
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('accessai:clear_site_overrides'));
     }
     return true;
   }

@@ -3,34 +3,12 @@
  * Strictly 100% Client-Side Persistent Storage
  * Zero external telemetry or server transmission
  */
+import { DEFAULT_INITIAL_PROFILE } from './profileDefaults.js';
+
+export { DEFAULT_INITIAL_PROFILE } from './profileDefaults.js';
 
 const DB_NAME = 'AccessAI_DB';
 const DB_VERSION = 2;
-
-export const DEFAULT_INITIAL_PROFILE = {
-  fontFamily: 'Inter',
-  fontSize: 16,
-  lineSpacing: 1.5,
-  letterSpacing: 0,
-  wordSpacing: 0,
-  contentWidth: 760,
-  theme: 'default', // 'default' | 'warm' | 'dark' | 'high-contrast' | 'dyslexia'
-  focusMode: false,
-  readingRuler: false,
-  paragraphHighlight: false,
-  sentenceHighlight: false,
-  dimBackground: false,
-  reducedMotion: false,
-  contrast: 100,
-  contrastPreference: 'comfortable', // 'comfortable' | 'soft' | 'high'
-  preferredBackground: 'clean_light', // 'clean_light' | 'warm_parchment' | 'soft_dark' | 'dyslexia_tint'
-  focusPreference: 'spotlight', // 'spotlight' | 'ruler' | 'dimming' | 'standard'
-  readingEnvironment: 'balanced', // 'balanced' | 'focus_room' | 'night'
-  ttsSpeed: 1.0,
-  ttsVoice: '',
-  aiModelPreference: 'cognitive_local', // 'cognitive_local' | 'custom_api'
-  createdAt: new Date().toISOString(),
-};
 
 class LearningStorage {
   constructor() {

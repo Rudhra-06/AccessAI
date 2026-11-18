@@ -53,6 +53,10 @@ export function ExtensionIntegration({ currentProfile }) {
       fontSize: Number(newFontSize),
       theme: newTheme
     });
+    extensionBridge.saveSiteOverride(clean, {
+      fontSize: Number(newFontSize),
+      theme: newTheme,
+    });
 
     setNewDomain('');
     notify(`Saved custom override rule for ${clean}`);
@@ -61,6 +65,7 @@ export function ExtensionIntegration({ currentProfile }) {
 
   const handleDeleteOverride = async (domain) => {
     await learningStorage.deleteSiteOverride(domain);
+    extensionBridge.deleteSiteOverride(domain);
     notify(`Deleted override rule for ${domain}`);
     loadOverrides();
   };
@@ -259,7 +264,7 @@ export function ExtensionIntegration({ currentProfile }) {
               Enable the <strong className="text-[#421426]">Developer mode</strong> toggle in the top-right corner.
             </li>
             <li className="leading-relaxed">
-              Click <strong className="text-[#421426]">Load unpacked</strong> and select the <code className="bg-[#FFF8FA] px-1.5 py-0.5 rounded border border-[#F4C7D5] font-mono text-[11px]">dist</code> folder.
+              Run <code className="bg-[#FFF8FA] px-1.5 py-0.5 rounded border border-[#F4C7D5] font-mono text-[11px]">npm run build:extension</code>, then click <strong className="text-[#421426]">Load unpacked</strong> and select the <code className="bg-[#FFF8FA] px-1.5 py-0.5 rounded border border-[#F4C7D5] font-mono text-[11px]">dist-extension</code> folder.
             </li>
             <li className="leading-relaxed">
               Pin AccessAI to your toolbar. Your Personal Reading Fingerprint will immediately personalize any web page you visit!

@@ -14,31 +14,85 @@ import {
   Compass
 } from 'lucide-react';
 import { adaptiveEngine } from '../learning/adaptiveEngine.js';
-import { DEFAULT_INITIAL_PROFILE } from '../learning/learningStorage.js';
+import { DEFAULT_INITIAL_PROFILE, learningStorage } from '../learning/learningStorage.js';
+import {
+  getEffectiveProfile,
+  getSiteOverride,
+  normalizeDomain,
+  PROFILE_STORAGE_KEY,
+  sanitizeProfile,
+} from '../extension/profileSync.js';
 
 export function Popup() {
   const [profile, setProfile] = useState(DEFAULT_INITIAL_PROFILE);
   const [adaptiveEnabled, setAdaptiveEnabled] = useState(true);
   const [learnedPrefs, setLearnedPrefs] = useState({});
   const [comfortProfile, setComfortProfile] = useState({ overall: 85 });
+  const [activeDomain, setActiveDomain] = useState('');
+  const [scope, setScope] = useState('global');
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    adaptiveEngine.getFullState().then(state => {
-      setProfile(state.currentProfile);
-      setAdaptiveEnabled(state.adaptiveLearningEnabled);
-      setLearnedPrefs(state.learnedPreferences);
-      setComfortProfile(state.comfortProfile);
-    });
+    let active = true;
+    const loadState = async () => {
+      try {
+        const [state, tabs] = await Promise.all([
+          adaptiveEngine.getFullState(),
+          chrome.tabs.query({ active: true, lastFocusedWindow: true }),
+        ]);
+        if (!active) return;
+
+        const domain = normalizeDomain(tabs[0]?.url || '');
+        const stored = await chrome.storage.local.get(PROFILE_STORAGE_KEY);
+        const profiles = stored[PROFILE_STORAGE_KEY] || {};
+        const globalProfile = profiles.globalProfile || state.currentProfile;
+        if (!profiles.globalProfile) {
+          await chrome.runtime.sendMessage({
+            type: 'ACCESSAI_SAVE_PROFILE',
+            profile: globalProfile,
+          });
+        }
+
+        setActiveDomain(domain);
+        setProfile(scope === 'site'
+          ? getEffectiveProfile({ ...profiles, globalProfile }, domain)
+          : sanitizeProfile(globalProfile));
+        setAdaptiveEnabled(state.adaptiveLearningEnabled);
+        setLearnedPrefs(state.learnedPreferences);
+        setComfortProfile(state.comfortProfile);
+      } catch (error) {
+        console.error('[AccessAI] Failed to load popup preferences:', error);
+        if (active) setErrorMessage('Could not load saved preferences.');
+      }
+    };
+
+    loadState();
 
     const unsub = adaptiveEngine.subscribe(state => {
-      setProfile(state.currentProfile);
+      if (scope === 'global') setProfile(state.currentProfile);
       setAdaptiveEnabled(state.adaptiveLearningEnabled);
       setLearnedPrefs(state.learnedPreferences);
       setComfortProfile(state.comfortProfile);
     });
 
-    return () => unsub();
-  }, []);
+    const handleStorageChange = (changes, areaName) => {
+      if (areaName !== 'local' || !changes[PROFILE_STORAGE_KEY]) return;
+      chrome.storage.local.get(PROFILE_STORAGE_KEY).then((stored) => {
+        if (active) {
+          setProfile(scope === 'site'
+            ? getEffectiveProfile(stored[PROFILE_STORAGE_KEY], activeDomain)
+            : sanitizeProfile(stored[PROFILE_STORAGE_KEY]?.globalProfile));
+        }
+      }).catch((error) => console.error('[AccessAI] Failed to refresh popup preferences:', error));
+    };
+    chrome.storage.onChanged.addListener(handleStorageChange);
+
+    return () => {
+      active = false;
+      unsub();
+      chrome.storage.onChanged.removeListener(handleStorageChange);
+    };
+  }, [scope, activeDomain]);
 
   const handleToggleAdaptive = async () => {
     const next = !adaptiveEnabled;
@@ -50,13 +104,37 @@ export function Popup() {
     const fromVal = profile[dimension];
     const updated = { ...profile, [dimension]: val };
     setProfile(updated);
-    await adaptiveEngine.updateCurrentProfile({ [dimension]: val });
-    await adaptiveEngine.recordInteraction({
-      type: eventType || `${dimension}_change`,
-      dimension,
-      from: fromVal,
-      to: val
-    });
+    setErrorMessage('');
+
+    try {
+      let profileToSync = updated;
+      if (scope === 'site' && activeDomain) {
+        const stored = await chrome.storage.local.get(PROFILE_STORAGE_KEY);
+        const currentOverride = getSiteOverride(stored[PROFILE_STORAGE_KEY], activeDomain);
+        profileToSync = { ...currentOverride, [dimension]: val };
+        await learningStorage.saveSiteOverride(activeDomain, updated);
+      } else {
+        await adaptiveEngine.updateCurrentProfile({ [dimension]: val });
+        await adaptiveEngine.recordInteraction({
+          type: eventType || `${dimension}_change`,
+          dimension,
+          from: fromVal,
+          to: val
+        });
+      }
+
+      const response = await chrome.runtime.sendMessage({
+        type: 'ACCESSAI_SAVE_PROFILE',
+        profile: profileToSync,
+        domain: scope === 'site' ? activeDomain : null,
+      });
+      if (response?.status !== 'ok') {
+        throw new Error(response?.message || 'Background could not save the profile.');
+      }
+    } catch (error) {
+      console.error('[AccessAI] Failed to save popup preferences:', error);
+      setErrorMessage('Could not sync this change to your website.');
+    }
   };
 
   const themes = [
@@ -64,6 +142,7 @@ export function Popup() {
     { id: 'warm', label: 'Warm', bg: 'bg-[#FAF4E6]', text: 'text-[#2E241E]', border: 'border-amber-300' },
     { id: 'dark', label: 'Dark', bg: 'bg-[#291923]', text: 'text-[#F9E8EE]', border: 'border-[#70243E]' },
     { id: 'dyslexia', label: 'Peach', bg: 'bg-[#F4EDD8]', text: 'text-[#1A1E24]', border: 'border-amber-400' },
+    { id: 'high-contrast', label: 'Contrast', bg: 'bg-black', text: 'text-[#D8FF56]', border: 'border-[#D8FF56]' },
   ];
 
   return (
@@ -121,6 +200,31 @@ export function Popup() {
         </button>
       </div>
 
+      <div className="mt-3 flex items-center justify-between gap-2 text-[10px]">
+        <span className="font-semibold text-[#806C77]">Apply preferences to</span>
+        <div className="flex items-center rounded-lg border border-[#F4C7D5] overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setScope('global')}
+            className={`px-2.5 py-1 font-semibold ${scope === 'global' ? 'bg-[#421426] text-white' : 'bg-white text-[#421426]'}`}
+          >
+            All websites
+          </button>
+          <button
+            type="button"
+            onClick={() => setScope('site')}
+            disabled={!activeDomain}
+            className={`px-2.5 py-1 font-semibold disabled:opacity-40 ${scope === 'site' ? 'bg-[#421426] text-white' : 'bg-white text-[#421426]'}`}
+            title={activeDomain ? `Only ${activeDomain}` : 'Open an http or https website to enable this'}
+          >
+            {activeDomain || 'This website'}
+          </button>
+        </div>
+      </div>
+      {errorMessage && (
+        <p role="alert" className="mt-2 text-[10px] text-rose-700">{errorMessage}</p>
+      )}
+
       {/* Reading Comfort & Confidence Summary */}
       <div className="mt-3 grid grid-cols-2 gap-2">
         <div className="p-2.5 rounded-xl bg-white border border-[#F9E8EE] shadow-sm">
@@ -150,6 +254,20 @@ export function Popup() {
 
       {/* Quick Personalization Sliders */}
       <div className="mt-3 space-y-3 p-3 rounded-xl bg-white border border-[#F9E8EE] shadow-sm text-xs">
+        <div>
+          <label htmlFor="accessai-font-family" className="text-[#806C77] font-semibold block mb-1">Font Family</label>
+          <select
+            id="accessai-font-family"
+            value={profile.fontFamily}
+            onChange={(e) => handleAdjust('fontFamily', e.target.value, 'font_change')}
+            className="w-full rounded-lg border border-[#F4C7D5] bg-white px-2.5 py-1.5 text-xs text-[#291923]"
+          >
+            {['Inter', 'Lexend', 'Atkinson Hyperlegible', 'Merriweather', 'OpenDyslexic'].map((font) => (
+              <option key={font} value={font}>{font}</option>
+            ))}
+          </select>
+        </div>
+
         {/* Font Size */}
         <div>
           <div className="flex justify-between text-[#806C77] font-semibold mb-1">
@@ -179,6 +297,29 @@ export function Popup() {
               +
             </button>
           </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            ['letterSpacing', 'Letter spacing', -2, 8, 0.5],
+            ['wordSpacing', 'Word spacing', -2, 12, 0.5],
+          ].map(([dimension, label, min, max, step]) => (
+            <label key={dimension} className="text-[10px] font-semibold text-[#806C77]">
+              <span className="flex justify-between mb-1">
+                <span>{label}</span>
+                <span className="font-mono text-[#8E294B]">{profile[dimension] || 0}px</span>
+              </span>
+              <input
+                type="range"
+                min={min}
+                max={max}
+                step={step}
+                value={profile[dimension] || 0}
+                onChange={(e) => handleAdjust(dimension, Number(e.target.value))}
+                className="w-full accent-[#8E294B]"
+              />
+            </label>
+          ))}
         </div>
 
         {/* Line Spacing */}
@@ -212,10 +353,27 @@ export function Popup() {
           </div>
         </div>
 
+        <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
+          {[
+            ['focusMode', 'Smart Focus'],
+            ['readingRuler', 'Reading Ruler'],
+          ].map(([dimension, label]) => (
+            <button
+              key={dimension}
+              type="button"
+              aria-pressed={!!profile[dimension]}
+              onClick={() => handleAdjust(dimension, !profile[dimension], `${dimension}_toggle`)}
+              className={`rounded-lg border px-2 py-1.5 font-semibold ${profile[dimension] ? 'border-[#421426] bg-[#421426] text-white' : 'border-[#F4C7D5] bg-white text-[#421426]'}`}
+            >
+              {label}: {profile[dimension] ? 'On' : 'Off'}
+            </button>
+          ))}
+        </div>
+
         {/* Theme Buttons */}
         <div>
           <span className="text-[#806C77] font-semibold block mb-1">Reading Tone</span>
-          <div className="grid grid-cols-4 gap-1">
+          <div className="grid grid-cols-5 gap-1">
             {themes.map(t => (
               <button
                 key={t.id}

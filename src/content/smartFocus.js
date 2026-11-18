@@ -53,117 +53,83 @@ export class SmartFocusEngine {
   static findPrimaryReadingContainer() {
     if (typeof document === 'undefined') return null;
 
-    // Check standard semantic landmarks
-    const candidate = document.querySelector('article, main, [role="main"], .main-content, .entry-content, .post-content, #content');
-    if (candidate) return candidate;
+    const candidates = [
+      '#mw-content-text .mw-parser-output',
+      '#mw-content-text',
+      'article',
+      '.entry-content',
+      '.post-content',
+      '[role="main"]',
+      'main',
+    ];
+    for (const selector of candidates) {
+      const candidate = document.querySelector(selector);
+      if (candidate?.querySelector('p, h1, h2, h3')) return candidate;
+    }
 
-    // Fallback: search for container with highest paragraph count
-    let bestContainer = null;
-    let maxParas = 0;
-    const containers = document.querySelectorAll('section, div');
-    containers.forEach(c => {
-      const pCount = c.querySelectorAll(':scope > p, :scope > div > p').length;
-      if (pCount > maxParas) {
-        maxParas = pCount;
-        bestContainer = c;
-      }
+    return null;
+  }
+
+  static applyFocusMode(enabled, category = 'general', manageStyles = true) {
+    const styleElement = document.getElementById('accessai-focus-style');
+    if (styleElement) styleElement.remove();
+    document.querySelectorAll('.accessai-focus-enabled').forEach((element) => {
+      element.classList.remove('accessai-focus-enabled');
     });
-
-    return maxParas >= 3 ? bestContainer : document.body;
+    const primary = this.findPrimaryReadingContainer();
+    if (primary) primary.classList.add('accessai-reading-root');
+    if (enabled && primary) primary.classList.add('accessai-focus-enabled');
+    if (enabled && manageStyles) {
+      const style = document.createElement('style');
+      style.id = 'accessai-focus-style';
+      style.textContent = `
+        .accessai-reading-root.accessai-focus-enabled :is(p, li, blockquote) { opacity: 0.35 !important; transition: opacity 120ms ease !important; }
+        .accessai-reading-root.accessai-focus-enabled :is(p, li, blockquote):hover,
+        .accessai-reading-root.accessai-focus-enabled :is(p, li, blockquote):focus-within { opacity: 1 !important; }
+        .accessai-reading-root.accessai-focus-enabled :is(pre, code) { opacity: 1 !important; }
+      `;
+      (document.head || document.documentElement).appendChild(style);
+    }
   }
 
-  /**
-   * Apply Context-Aware Smart Focus
-   */
-  static applyFocusMode(enabled, category = 'general') {
-    const existingOverlay = document.getElementById('accessai-focus-style');
-    if (existingOverlay) existingOverlay.remove();
-
-    document.querySelectorAll('.accessai-focused-primary').forEach(el => el.classList.remove('accessai-focused-primary'));
-
-    if (!enabled) return;
-
-    const primaryEl = this.findPrimaryReadingContainer();
-    if (primaryEl && primaryEl !== document.body) {
-      primaryEl.classList.add('accessai-focused-primary');
-    }
-
-    const styleEl = document.createElement('style');
-    styleEl.id = 'accessai-focus-style';
-
-    if (category === 'documentation') {
-      // For docs: preserve code, sidebar, and headers while gently calming surrounding ads/footers
-      styleEl.textContent = `
-        body:not(:has(#accessai-hud-container)) {
-          transition: background-color 0.3s ease;
-        }
-        aside:not(.docs-nav):not(.sidebar), .ad, .advertisement, [id*="banner"], footer, .sidebar-ad {
-          opacity: 0.15 !important;
-          transition: opacity 0.3s ease;
-        }
-        aside:hover, footer:hover {
-          opacity: 0.9 !important;
-        }
-        pre, code {
-          border-radius: 6px !important;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
-        }
-      `;
-    } else {
-      // For articles: isolate main reading container
-      styleEl.textContent = `
-        body.accessai-focus-active > *:not(main):not(article):not(#accessai-hud-container):not(#accessai-ruler-container) {
-          opacity: 0.2 !important;
-          filter: grayscale(40%) !important;
-          transition: all 0.3s ease;
-        }
-        .accessai-focused-primary {
-          box-shadow: 0 0 40px rgba(0, 0, 0, 0.25) !important;
-          position: relative !important;
-          z-index: 10 !important;
-          opacity: 1.0 !important;
-          filter: none !important;
-          transition: all 0.3s ease;
-        }
-        aside, .ads, .sidebar-promo, [class*="sponsored"] {
-          opacity: 0.1 !important;
-          transition: opacity 0.3s ease;
-        }
-        aside:hover {
-          opacity: 0.8 !important;
-        }
-      `;
-    }
-
-    document.head.appendChild(styleEl);
-    document.body.classList.add('accessai-focus-active');
-  }
-
-  /**
-   * Initialize / Toggle Reading Ruler
-   */
   static toggleReadingRuler(enabled) {
     let ruler = document.getElementById('accessai-reading-ruler');
 
     if (!enabled) {
       if (ruler) ruler.remove();
-      if (window._accessaiRulerMove) {
-        window.removeEventListener('mousemove', window._accessaiRulerMove);
-        window._accessaiRulerMove = null;
-      }
+      if (window._accessaiRulerMove) window.removeEventListener('mousemove', window._accessaiRulerMove);
+      window._accessaiRulerMove = null;
       return;
     }
 
     if (!ruler) {
       ruler = document.createElement('div');
       ruler.id = 'accessai-reading-ruler';
-      ruler.className = 'accessai-reading-ruler';
+      ruler.setAttribute('aria-hidden', 'true');
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(`
+        .track {
+          position: fixed;
+          left: 0;
+          right: 0;
+          top: 0;
+          height: 52px;
+          box-sizing: border-box;
+          background: rgba(216, 255, 86, 0.15);
+          border-block: 2px solid #8E294B;
+          box-shadow: 0 0 0 9999px rgba(41, 25, 35, 0.38);
+          transition: top 50ms linear;
+        }
+      `);
+      const shadow = ruler.attachShadow({ mode: 'closed' });
+      shadow.adoptedStyleSheets = [sheet];
+      const track = document.createElement('div');
+      track.className = 'track';
+      shadow.append(track);
       document.body.appendChild(ruler);
 
-      window._accessaiRulerMove = (e) => {
-        if (ruler) {
-          ruler.style.top = `${e.clientY - 24}px`;
-        }
+      window._accessaiRulerMove = (event) => {
+        sheet.cssRules[0].style.top = `${Math.max(0, Math.min(window.innerHeight - 52, event.clientY - 26))}px`;
       };
       window.addEventListener('mousemove', window._accessaiRulerMove, { passive: true });
     }
